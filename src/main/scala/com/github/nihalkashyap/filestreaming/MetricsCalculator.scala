@@ -11,19 +11,27 @@ import org.apache.pekko.stream.scaladsl._
 import org.apache.pekko.util.ByteString
 
 import scala.concurrent.duration.Duration
+import scala.util.{Failure, Success, Try}
 
-case class SensorReading(sensorId: String, temperature: Double)
+case class SensorReading(sensorId: Option[String], temperature: Option[Double])
 
 object MetricsCalculator {
+
+  private def toDouble(str: String): Option[Double] = Try {
+    str.toDouble
+  } match {
+    case Failure(_) => None
+    case Success(value) => Some(value)
+  }
 
   def main(args: Array[String]): Unit = {
     implicit val system: ActorSystem = ActorSystem("MetricsCalculator")
     val file = Paths.get("/home/nihalk/Downloads/sensor_temperature_10M.csv")
     val decoder: Flow[String, SensorReading, NotUsed] = Flow[String].map { s =>
-      val attributes: Array[String] = s.split(",")
-      val sensorId: String = attributes(0)
-      val temperatureStr: String = attributes(1)
-      SensorReading(sensorId, temperatureStr.toDouble)
+      val elems: Array[String] = s.split(",")
+      val sensorId: Option[String] = elems.headOption
+      val temperatureStr: Option[String] = elems.lift(1)
+      SensorReading(sensorId, temperatureStr.flatMap(toDouble))
     }
 
     val graph = FileIO
